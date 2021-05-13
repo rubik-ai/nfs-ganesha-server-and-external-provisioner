@@ -55,5 +55,5 @@ clean-binary:
 .PHONY: clean-binary
 
 tmdc-push: container
-	docker tag nfs-provisioner:latest docker.io/rubiklabs/nfs-provisioner:3.0.1-d1
-	docker push docker.io/rubiklabs/nfs-provisioner:3.0.1-d1
+	docker tag nfs-provisioner:latest docker.io/rubiklabs/nfs-provisioner:3.0.1-d2
+	docker push docker.io/rubiklabs/nfs-provisioner:3.0.1-d2

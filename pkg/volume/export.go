@@ -105,6 +105,7 @@ func (e *genericExporter) AddExportBlock(path string, rootSquash bool, exportSub
 	}
 	if !exists {
 		exportID = generateID(e.mapMutex, e.exportIDs)
+		e.exportIdPathMap[exportID] = path
 	}
 	exportIDStr := strconv.FormatUint(uint64(exportID), 10)
 	block := e.ebc.CreateExportBlock(exportIDStr, path, rootSquash, exportSubnet)
@@ -112,6 +113,7 @@ func (e *genericExporter) AddExportBlock(path string, rootSquash bool, exportSub
 		// Add the export block to the config file
 		if err := addToFile(e.fileMutex, e.config, block); err != nil {
 			deleteID(e.mapMutex, e.exportIDs, exportID)
+			delete(e.exportIdPathMap, exportID)
 			return "", 0, false, fmt.Errorf("error adding export block %s to config %s: %v", block, e.config, err)
 		}
 	}

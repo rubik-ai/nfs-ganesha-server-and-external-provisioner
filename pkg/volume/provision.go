@@ -293,7 +293,8 @@ func (p *nfsProvisioner) createVolume(options controller.ProvisionOptions) (volu
 	if err != nil {
 		return volume{}, fmt.Errorf("error creating quota for volume: %v", err)
 	}
-	glog.Infof("creating volume(%s) rootPath:%s exportID:%d exportBlock:%s...complete", options.PVName, rootPath, exportID, exportBlock)
+	glog.V(1).Infof("exportBlock:%s", exportBlock)
+	glog.Infof("creating volume(%s) rootPath:%s exportID:%d...complete", options.PVName, rootPath, exportID)
 	return volume{
 		server:       server,
 		path:         path,
