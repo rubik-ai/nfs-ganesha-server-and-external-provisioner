@@ -31,7 +31,7 @@ import (
 
 type exporter interface {
 	CanExport(int) bool
-	AddExportBlock(string, bool, string) (string, uint16, error)
+	AddExportBlock(string, bool, string) (string, uint16, bool, error)
 	RemoveExportBlock(string, uint16) error
 	Export(string) error
 	Unexport(*v1.PersistentVolume) error
@@ -45,7 +45,8 @@ type exportMap struct {
 	// Map to track used exportIDs. Each ganesha export needs a unique fsid and
 	// Export_Id, each kernel a unique fsid. Assign each export an exportID and
 	// use it as both fsid and Export_Id.
-	exportIDs map[uint16]bool
+	exportIDs       map[uint16]bool
+	exportIdPathMap map[uint16]string
 }
 
 func (e *exportMap) CanExport(limit int) bool {
@@ -76,9 +77,14 @@ func newGenericExporter(ebc exportBlockCreator, config string, re *regexp.Regexp
 	if err != nil {
 		glog.Errorf("error while populating exportIDs map, there may be errors exporting later if exportIDs are reused: %v", err)
 	}
+	exportPathMap, err := getExports(config)
+	if err != nil {
+		glog.Errorf("error while populating exportPathMap, there may be errors exporting later if exportPathMap are reused: %v", err)
+	}
 	return &genericExporter{
 		exportMap: &exportMap{
-			exportIDs: exportIDs,
+			exportIDs:       exportIDs,
+			exportIdPathMap: exportPathMap,
 		},
 		ebc:       ebc,
 		config:    config,
@@ -87,18 +93,29 @@ func newGenericExporter(ebc exportBlockCreator, config string, re *regexp.Regexp
 	}
 }
 
-func (e *genericExporter) AddExportBlock(path string, rootSquash bool, exportSubnet string) (string, uint16, error) {
-	exportID := generateID(e.mapMutex, e.exportIDs)
-	exportIDStr := strconv.FormatUint(uint64(exportID), 10)
-
-	block := e.ebc.CreateExportBlock(exportIDStr, path, rootSquash, exportSubnet)
-
-	// Add the export block to the config file
-	if err := addToFile(e.fileMutex, e.config, block); err != nil {
-		deleteID(e.mapMutex, e.exportIDs, exportID)
-		return "", 0, fmt.Errorf("error adding export block %s to config %s: %v", block, e.config, err)
+func (e *genericExporter) AddExportBlock(path string, rootSquash bool, exportSubnet string) (string, uint16, bool, error) {
+	//check if the path already exists if so, just use existing export
+	exists := false
+	var exportID uint16
+	for id, ePath := range e.exportIdPathMap {
+		if path == ePath {
+			exists = true
+			exportID = id
+		}
 	}
-	return block, exportID, nil
+	if !exists {
+		exportID = generateID(e.mapMutex, e.exportIDs)
+	}
+	exportIDStr := strconv.FormatUint(uint64(exportID), 10)
+	block := e.ebc.CreateExportBlock(exportIDStr, path, rootSquash, exportSubnet)
+	if !exists {
+		// Add the export block to the config file
+		if err := addToFile(e.fileMutex, e.config, block); err != nil {
+			deleteID(e.mapMutex, e.exportIDs, exportID)
+			return "", 0, false, fmt.Errorf("error adding export block %s to config %s: %v", block, e.config, err)
+		}
+	}
+	return block, exportID, exists, nil
 }
 
 func (e *genericExporter) RemoveExportBlock(block string, exportID uint16) error {

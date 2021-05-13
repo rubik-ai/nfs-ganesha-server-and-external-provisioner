@@ -33,6 +33,28 @@ RUN mkdir -p /ganesha-extra \
     && mkdir -p /ganesha-extra/etc/dbus-1/system.d \
     && cp src/scripts/ganeshactl/org.ganesha.nfsd.conf /ganesha-extra/etc/dbus-1/system.d/
 
+FROM golang:1.16 as builder
+
+WORKDIR /go/src/
+
+# Copy the Go Modules manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
+# cache deps before building and copying source so that we don't need to re-download as much
+# and so that source changes don't invalidate our downloaded layer
+RUN go mod download
+
+# Copy the go source
+COPY Makefile Makefile
+COPY .git/ .git/
+COPY release-tools/ release-tools/
+COPY cmd/ cmd/
+COPY pkg/ pkg/
+
+RUN ls -la
+
+RUN make build
+
 FROM registry.fedoraproject.org/fedora-minimal:30 AS run
 RUN microdnf install -y libblkid userspace-rcu dbus-x11 rpcbind hostname nfs-utils xfsprogs jemalloc libnfsidmap && microdnf clean all
 
@@ -48,8 +70,10 @@ RUN sed -i s/systemd// /etc/nsswitch.conf
 COPY --from=build /usr/local /usr/local/
 COPY --from=build /ganesha-extra /
 
-ARG binary=bin/nfs-provisioner
-COPY ${binary} /nfs-provisioner
+COPY --from=builder /go/src/bin/nfs-provisioner /nfs-provisioner
+#
+#ARG binary=bin/nfs-provisioner
+#COPY ${binary} /nfs-provisioner
 
 # run ldconfig after libs have been copied
 RUN ldconfig

@@ -17,6 +17,7 @@ limitations under the License.
 package volume
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -82,6 +83,46 @@ func getExistingIDs(config string, re *regexp.Regexp) (map[uint16]bool, error) {
 	}
 
 	return ids, nil
+}
+
+func getExports(config string) (map[uint16]string, error) {
+	idPathMap := map[uint16]string{}
+
+	f, err := os.Open(config)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "Export_Id") {
+			tp := strings.Split(line, " = ")
+			if len(tp) != 2 {
+				continue
+			}
+			digits := strings.TrimSuffix(strings.TrimSpace(tp[1]), ";")
+			if id, err := strconv.ParseUint(digits, 10, 16); err == nil {
+				if scanner.Scan() {
+					line := scanner.Text()
+					if strings.Contains(line, "Path") {
+						tp := strings.Split(line, " = ")
+						if len(tp) != 2 {
+							continue
+						}
+						path := strings.TrimSuffix(strings.TrimSpace(tp[1]), ";")
+						idPathMap[uint16(id)] = path
+					}
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return idPathMap, nil
 }
 
 func addToFile(mutex *sync.Mutex, path string, toAdd string) error {
