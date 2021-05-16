@@ -18,6 +18,9 @@ package main
 
 import (
 	"flag"
+	"github.com/kubernetes-sigs/nfs-ganesha-server-and-external-provisioner/pkg/mounter"
+	"github.com/kubernetes-sigs/nfs-ganesha-server-and-external-provisioner/pkg/s3"
+	"os"
 	"strings"
 	"time"
 
@@ -34,18 +37,24 @@ import (
 )
 
 var (
-	provisioner    = flag.String("provisioner", "example.com/nfs", "Name of the provisioner. The provisioner will only provision volumes for claims that request a StorageClass with a provisioner field set equal to this name.")
-	master         = flag.String("master", "", "Master URL to build a client config from. Either this or kubeconfig needs to be set if the provisioner is being run out of cluster.")
-	kubeconfig     = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
-	runServer      = flag.Bool("run-server", true, "If the provisioner is responsible for running the NFS server, i.e. starting and stopping NFS Ganesha. Default true.")
-	useGanesha     = flag.Bool("use-ganesha", true, "If the provisioner will create volumes using NFS Ganesha (D-Bus method calls) as opposed to using the kernel NFS server ('exportfs'). If run-server is true, this must be true. Default true.")
-	gracePeriod    = flag.Uint("grace-period", 90, "NFS Ganesha grace period to use in seconds, from 0-180. If the server is not expected to survive restarts, i.e. it is running as a pod & its export directory is not persisted, this can be set to 0. Can only be set if both run-server and use-ganesha are true. Default 90.")
-	enableXfsQuota = flag.Bool("enable-xfs-quota", false, "If the provisioner will set xfs quotas for each volume it provisions. Requires that the directory it creates volumes in ('/export') is xfs mounted with option prjquota/pquota, and that it has the privilege to run xfs_quota. Default false.")
-	serverHostname = flag.String("server-hostname", "", "The hostname for the NFS server to export from. Only applicable when running out-of-cluster i.e. it can only be set if either master or kubeconfig are set. If unset, the first IP output by `hostname -i` is used.")
-	exportSubnet   = flag.String("export-subnet", "*", "Subnet for NFS export to allow mount only from")
-	maxExports     = flag.Int("max-exports", -1, "The maximum number of volumes to be exported by this provisioner. New claims will be ignored once this limit has been reached. A negative value is interpreted as 'unlimited'. Default -1.")
-	fsidDevice     = flag.Bool("device-based-fsids", true, "If file system handles created by NFS Ganesha should be based on major/minor device IDs of the backing storage volume ('/export'). Default true.")
-	leaderElection = flag.Bool("leader-elect", false, "Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability. Default false.")
+	provisioner         = flag.String("provisioner", "example.com/nfs", "Name of the provisioner. The provisioner will only provision volumes for claims that request a StorageClass with a provisioner field set equal to this name.")
+	master              = flag.String("master", "", "Master URL to build a client config from. Either this or kubeconfig needs to be set if the provisioner is being run out of cluster.")
+	kubeconfig          = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Either this or master needs to be set if the provisioner is being run out of cluster.")
+	runServer           = flag.Bool("run-server", true, "If the provisioner is responsible for running the NFS server, i.e. starting and stopping NFS Ganesha. Default true.")
+	useGanesha          = flag.Bool("use-ganesha", true, "If the provisioner will create volumes using NFS Ganesha (D-Bus method calls) as opposed to using the kernel NFS server ('exportfs'). If run-server is true, this must be true. Default true.")
+	gracePeriod         = flag.Uint("grace-period", 90, "NFS Ganesha grace period to use in seconds, from 0-180. If the server is not expected to survive restarts, i.e. it is running as a pod & its export directory is not persisted, this can be set to 0. Can only be set if both run-server and use-ganesha are true. Default 90.")
+	enableXfsQuota      = flag.Bool("enable-xfs-quota", false, "If the provisioner will set xfs quotas for each volume it provisions. Requires that the directory it creates volumes in ('/export') is xfs mounted with option prjquota/pquota, and that it has the privilege to run xfs_quota. Default false.")
+	serverHostname      = flag.String("server-hostname", "", "The hostname for the NFS server to export from. Only applicable when running out-of-cluster i.e. it can only be set if either master or kubeconfig are set. If unset, the first IP output by `hostname -i` is used.")
+	exportSubnet        = flag.String("export-subnet", "*", "Subnet for NFS export to allow mount only from")
+	maxExports          = flag.Int("max-exports", -1, "The maximum number of volumes to be exported by this provisioner. New claims will be ignored once this limit has been reached. A negative value is interpreted as 'unlimited'. Default -1.")
+	fsidDevice          = flag.Bool("device-based-fsids", true, "If file system handles created by NFS Ganesha should be based on major/minor device IDs of the backing storage volume ('/export'). Default true.")
+	leaderElection      = flag.Bool("leader-elect", false, "Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability. Default false.")
+	useS3StorageBackend = flag.Bool("use-s3-backend", false, "Use S3 as the storage backend")
+	s3BucketName        = flag.String("s3-bucket-name", "", "S3 Bucket Name")
+	s3RootDir           = flag.String("s3-root-dir", "", "S3 Root Directory")
+	s3Region            = flag.String("s3-region", "", "S3 Region")
+	s3Endpoint          = flag.String("s3-endpoint", "", "S3 Endpoint")
+	s3TargetMountDir    = flag.String("s3-target-mount-dir", "/mnt/s3", "Target Directory to mount the S3 Bucket and Root Dir")
 )
 
 const (
@@ -83,6 +92,36 @@ func main() {
 
 	if !outOfCluster && *serverHostname != "" {
 		glog.Fatalf("Invalid flags specified: if server-hostname is set, either master or kube-config must also be set.")
+	}
+
+	if *useS3StorageBackend {
+		aki := os.Getenv("AWS_ACCESS_KEY_ID")
+		sak := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+		if *s3BucketName == "" {
+			glog.Fatalf("Invalid flags specified: if use-s3-backend is set, s3-bucket-name must also be set.")
+		}
+		if *s3Endpoint == "" {
+			glog.Fatalf("Invalid flags specified: if use-s3-backend is set, s3-endpoint must also be set.")
+		}
+		s3, err := s3.NewClientFromEnv(aki, sak, *s3Region, *s3Endpoint)
+		if err != nil {
+			glog.Fatalf("failed to initialize S3 client: %s", err)
+		}
+		meta, err := s3.GetFSMeta(*s3BucketName, *s3RootDir)
+		if err != nil {
+			glog.Fatalf("failed to initialize S3 backend: %s", err)
+		}
+		s3.Config.Mounter = "rclone"
+		mounter, err := mounter.New(meta, s3.Config)
+		if err != nil {
+			glog.Fatalf("failed to initialize S3 backend: %s", err)
+		}
+		if err := mounter.Mount(*s3TargetMountDir); err != nil {
+			glog.Fatalf("failed to initialize S3 backend: %s", err)
+		}
+
+		glog.Infof("s3: volume %s/%s successfuly mounted to %s", *s3BucketName, *s3RootDir, *s3TargetMountDir)
 	}
 
 	if *runServer {
@@ -143,6 +182,10 @@ func main() {
 	)
 
 	pc.Run(wait.NeverStop)
+
+	if err := mounter.FuseUnmount(*s3TargetMountDir); err != nil {
+		glog.Fatalf("failed to unmount S3 backend: %s", err)
+	}
 }
 
 // validateProvisioner tests if provisioner is a valid qualified name.

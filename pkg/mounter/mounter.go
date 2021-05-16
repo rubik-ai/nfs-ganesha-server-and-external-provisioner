@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/kubernetes-sigs/nfs-ganesha-server-and-external-provisioner/pkg/s3"
+	"github.com/mitchellh/go-ps"
 	"io/ioutil"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"os"
@@ -12,13 +13,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"github.com/mitchellh/go-ps"
 )
 
 type Mounter interface {
-	Stage(stagePath string) error
-	Unstage(stagePath string) error
-	Mount(source string, target string) error
+	Mount(target string) error
 }
 
 const (

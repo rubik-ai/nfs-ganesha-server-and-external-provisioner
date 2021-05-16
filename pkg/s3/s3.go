@@ -5,13 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/url"
-	"path"
-
 	"github.com/golang/glog"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"io"
+	"net/url"
+	"path"
 )
 
 const (
@@ -66,12 +65,12 @@ func NewClient(cfg *Config) (*s3Client, error) {
 	return client, nil
 }
 
-func NewClientFromSecret(secret map[string]string) (*s3Client, error) {
+func NewClientFromEnv(accessKey, secretKey, region, endpoint string) (*s3Client, error) {
 	return NewClient(&Config{
-		AccessKeyID:     secret["accessKeyID"],
-		SecretAccessKey: secret["secretAccessKey"],
-		Region:          secret["region"],
-		Endpoint:        secret["endpoint"],
+		AccessKeyID:     accessKey,
+		SecretAccessKey: secretKey,
+		Region:          region,
+		Endpoint:        endpoint,
 		// Mounter is set in the volume preferences, not secrets
 		Mounter: "",
 	})
