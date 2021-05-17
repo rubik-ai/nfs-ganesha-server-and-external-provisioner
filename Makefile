@@ -54,6 +54,8 @@ clean-binary:
 	rm -f deploy/docker/arm/nfs-provisioner
 .PHONY: clean-binary
 
-tmdc-push: container
-	docker tag nfs-provisioner:latest docker.io/rubiklabs/nfs-provisioner:3.0.1-d2
-	docker push docker.io/rubiklabs/nfs-provisioner:3.0.1-d2
+tmdc-container:
+	docker build -t docker.io/rubiklabs/nfs-provisioner:3.0.2-d2 -f Dockerfile --label revision=$(VERSION) .
+
+tmdc-push: tmdc-container
+	docker push docker.io/rubiklabs/nfs-provisioner:3.0.2-d2

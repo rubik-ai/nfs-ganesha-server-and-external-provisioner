@@ -1,0 +1,92 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-provisioner
+---
+kind: Pod
+apiVersion: v1
+metadata:
+  name: nfs-provisioner
+spec:
+  serviceAccount: nfs-provisioner
+  imagePullSecrets:
+    - name: dataos-container-registry
+  containers:
+    - name: nfs-p
+      image: docker.io/rubiklabs/nfs-provisioner:3.0.2-d2
+      ports:
+        - name: nfs
+          containerPort: 2049
+        - name: nfs-udp
+          containerPort: 2049
+          protocol: UDP
+        - name: nlockmgr
+          containerPort: 32803
+        - name: nlockmgr-udp
+          containerPort: 32803
+          protocol: UDP
+        - name: mountd
+          containerPort: 20048
+        - name: mountd-udp
+          containerPort: 20048
+          protocol: UDP
+        - name: rquotad
+          containerPort: 875
+        - name: rquotad-udp
+          containerPort: 875
+          protocol: UDP
+        - name: rpcbind
+          containerPort: 111
+        - name: rpcbind-udp
+          containerPort: 111
+          protocol: UDP
+        - name: statd
+          containerPort: 662
+        - name: statd-udp
+          containerPort: 662
+          protocol: UDP
+      securityContext:
+        privileged: true
+        allowPrivilegeEscalation: true
+        capabilities:
+          add:
+            - DAC_READ_SEARCH
+            - SYS_RESOURCE
+            - SYS_ADMIN
+      command: [/nfs-provisioner]
+      args:
+        - "-provisioner=dataos.io/nfs-provisioner"
+        - "-grace-period=100"
+        - "-use-s3-backend"
+        - "-s3-bucket-name=ds-demo-syndication-output"
+        - "-s3-root-dir=demo"
+        - "-s3-endpoint=https://storage.googleapis.com"
+        - "-s3-target-mount-dir=/mnt/s3/demo"
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          value: 
+        - name: AWS_SECRET_ACCESS_KEY
+          value:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: SERVICE_NAME
+          value: nfs-provisioner
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+      imagePullPolicy: "Always"
+      volumeMounts:
+        - name: export-volume
+          mountPath: /export
+        - name: fuse-device
+          mountPath: /dev/fuse
+  volumes:
+    - name: export-volume
+      emptyDir: {}
+    - name: fuse-device
+      hostPath:
+        path: /dev/fuse

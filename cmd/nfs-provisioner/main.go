@@ -95,6 +95,7 @@ func main() {
 	}
 
 	if *useS3StorageBackend {
+		glog.Infof("Using S3 Backend")
 		aki := os.Getenv("AWS_ACCESS_KEY_ID")
 		sak := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
@@ -104,23 +105,63 @@ func main() {
 		if *s3Endpoint == "" {
 			glog.Fatalf("Invalid flags specified: if use-s3-backend is set, s3-endpoint must also be set.")
 		}
+
+		meta := &s3.FSMeta{
+			BucketName: *s3BucketName,
+			Prefix:     *s3RootDir,
+			Mounter:    "rclone",
+			FSPath:     "",
+		}
+
+		glog.Infof("Creating S3 Client")
 		s3, err := s3.NewClientFromEnv(aki, sak, *s3Region, *s3Endpoint)
 		if err != nil {
 			glog.Fatalf("failed to initialize S3 client: %s", err)
 		}
-		meta, err := s3.GetFSMeta(*s3BucketName, *s3RootDir)
+
+		exists, err := s3.BucketExists(*s3BucketName)
 		if err != nil {
-			glog.Fatalf("failed to initialize S3 backend: %s", err)
-		}
-		s3.Config.Mounter = "rclone"
-		mounter, err := mounter.New(meta, s3.Config)
-		if err != nil {
-			glog.Fatalf("failed to initialize S3 backend: %s", err)
-		}
-		if err := mounter.Mount(*s3TargetMountDir); err != nil {
-			glog.Fatalf("failed to initialize S3 backend: %s", err)
+			glog.Fatalf("failed to check if bucket %s exists: %v", *s3BucketName, err)
 		}
 
+		if exists {
+			// get meta, ignore errors as it could just mean meta does not exist yet
+			_, err := s3.GetFSMeta(*s3BucketName, *s3RootDir)
+			if err != nil {
+			}
+		} else {
+			if err = s3.CreateBucket(*s3BucketName); err != nil {
+				glog.Fatalf("failed to create bucket %s: %v", *s3BucketName, err)
+			}
+		}
+
+
+		if err = s3.CreatePrefix(*s3BucketName, *s3RootDir); err != nil {
+			glog.Fatalf("failed to create prefix %s: %v", *s3RootDir, err)
+		}
+
+		if err := s3.SetFSMeta(meta); err != nil {
+			glog.Fatalf("error setting bucket metadata: %w", err)
+		}
+
+		meta, err = s3.GetFSMeta(*s3BucketName, *s3RootDir)
+		if err != nil {
+			glog.Fatalf("failed to get S3 metadata: %s", err)
+		}
+		glog.Infof("Creating S3 Mounter")
+		m, err := mounter.New(meta, s3.Config)
+		if err != nil {
+			glog.Fatalf("failed to initialize S3 backend mounter: %s", err)
+		}
+		if _, err := os.Stat(*s3TargetMountDir); os.IsNotExist(err) {
+			if err = os.MkdirAll(*s3TargetMountDir, 0755); err != nil {
+				glog.Fatalf("failed to create S3 target mount dir: %s", err)
+			}
+		}
+		glog.Infof("Mounting S3")
+		if err := m.Mount(*s3TargetMountDir); err != nil {
+			glog.Fatalf("failed to initialize S3 backend mount: %s", err)
+		}
 		glog.Infof("s3: volume %s/%s successfuly mounted to %s", *s3BucketName, *s3RootDir, *s3TargetMountDir)
 	}
 

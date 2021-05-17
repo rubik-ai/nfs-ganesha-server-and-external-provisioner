@@ -56,7 +56,8 @@ RUN ls -la
 RUN make build
 
 FROM registry.fedoraproject.org/fedora-minimal:30 AS run
-RUN microdnf install -y libblkid userspace-rcu dbus-x11 rpcbind hostname nfs-utils xfsprogs jemalloc libnfsidmap && microdnf clean all
+
+RUN microdnf install -y libblkid userspace-rcu dbus-x11 rpcbind hostname nfs-utils xfsprogs jemalloc libnfsidmap fuse fuse-libs s3fs-fuse curl unzip && microdnf clean all
 
 RUN mkdir -p /var/run/dbus \
     && mkdir -p /export
@@ -71,9 +72,14 @@ COPY --from=build /usr/local /usr/local/
 COPY --from=build /ganesha-extra /
 
 COPY --from=builder /go/src/bin/nfs-provisioner /nfs-provisioner
-#
-#ARG binary=bin/nfs-provisioner
-#COPY ${binary} /nfs-provisioner
+
+# install rclone
+ARG RCLONE_VERSION=v1.54.1
+RUN cd /tmp \
+  && curl -O https://downloads.rclone.org/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-linux-amd64.zip \
+  && unzip /tmp/rclone-${RCLONE_VERSION}-linux-amd64.zip \
+  && mv /tmp/rclone-*-linux-amd64/rclone /usr/bin \
+  && rm -r /tmp/rclone*
 
 # run ldconfig after libs have been copied
 RUN ldconfig

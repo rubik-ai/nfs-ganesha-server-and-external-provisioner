@@ -33,11 +33,10 @@ type Config struct {
 }
 
 type FSMeta struct {
-	BucketName    string `json:"Name"`
-	Prefix        string `json:"Prefix"`
-	Mounter       string `json:"Mounter"`
-	FSPath        string `json:"FSPath"`
-	CapacityBytes int64  `json:"CapacityBytes"`
+	BucketName string `json:"Name"`
+	Prefix     string `json:"Prefix"`
+	Mounter    string `json:"Mounter"`
+	FSPath     string `json:"FSPath"`
 }
 
 func NewClient(cfg *Config) (*s3Client, error) {
