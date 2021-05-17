@@ -110,7 +110,7 @@ func main() {
 			BucketName: *s3BucketName,
 			Prefix:     *s3RootDir,
 			Mounter:    "rclone",
-			FSPath:     "",
+			FSPath:     "nfs-root-fs",
 		}
 
 		glog.Infof("Creating S3 Client")
@@ -124,17 +124,11 @@ func main() {
 			glog.Fatalf("failed to check if bucket %s exists: %v", *s3BucketName, err)
 		}
 
-		if exists {
-			// get meta, ignore errors as it could just mean meta does not exist yet
-			_, err := s3.GetFSMeta(*s3BucketName, *s3RootDir)
-			if err != nil {
-			}
-		} else {
+		if !exists {
 			if err = s3.CreateBucket(*s3BucketName); err != nil {
 				glog.Fatalf("failed to create bucket %s: %v", *s3BucketName, err)
 			}
 		}
-
 
 		if err = s3.CreatePrefix(*s3BucketName, *s3RootDir); err != nil {
 			glog.Fatalf("failed to create prefix %s: %v", *s3RootDir, err)

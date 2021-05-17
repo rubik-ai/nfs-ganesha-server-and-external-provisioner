@@ -65,7 +65,7 @@ spec:
         - "-s3-target-mount-dir=/mnt/s3/demo"
       env:
         - name: AWS_ACCESS_KEY_ID
-          value: 
+          value:
         - name: AWS_SECRET_ACCESS_KEY
           value:
         - name: POD_IP
