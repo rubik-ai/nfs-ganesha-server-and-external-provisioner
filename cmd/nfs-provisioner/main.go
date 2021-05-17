@@ -110,7 +110,7 @@ func main() {
 			BucketName: *s3BucketName,
 			Prefix:     *s3RootDir,
 			Mounter:    "rclone",
-			FSPath:     "nfs-root-fs",
+			FSPath:     "fs",
 		}
 
 		glog.Infof("Creating S3 Client")
