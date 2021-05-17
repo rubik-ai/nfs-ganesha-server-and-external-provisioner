@@ -55,6 +55,7 @@ var (
 	s3Region            = flag.String("s3-region", "", "S3 Region")
 	s3Endpoint          = flag.String("s3-endpoint", "", "S3 Endpoint")
 	s3TargetMountDir    = flag.String("s3-target-mount-dir", "/mnt/s3", "Target Directory to mount the S3 Bucket and Root Dir")
+	s3MountAddArgs      = flag.String("s3-mount-additional-args", "", "Comma separated list of additional args to pass to the S3 mounter tool")
 )
 
 const (
@@ -106,6 +107,11 @@ func main() {
 			glog.Fatalf("Invalid flags specified: if use-s3-backend is set, s3-endpoint must also be set.")
 		}
 
+		var addArgs []string
+		if *s3MountAddArgs != "" {
+			addArgs = strings.Split(*s3MountAddArgs, ",")
+		}
+
 		meta := &s3.FSMeta{
 			BucketName: *s3BucketName,
 			Prefix:     *s3RootDir,
@@ -114,36 +120,36 @@ func main() {
 		}
 
 		glog.Infof("Creating S3 Client")
-		s3, err := s3.NewClientFromEnv(aki, sak, *s3Region, *s3Endpoint)
+		ess3, err := s3.NewClientFromEnv(aki, sak, *s3Region, *s3Endpoint)
 		if err != nil {
 			glog.Fatalf("failed to initialize S3 client: %s", err)
 		}
 
-		exists, err := s3.BucketExists(*s3BucketName)
+		exists, err := ess3.BucketExists(*s3BucketName)
 		if err != nil {
 			glog.Fatalf("failed to check if bucket %s exists: %v", *s3BucketName, err)
 		}
 
 		if !exists {
-			if err = s3.CreateBucket(*s3BucketName); err != nil {
+			if err = ess3.CreateBucket(*s3BucketName); err != nil {
 				glog.Fatalf("failed to create bucket %s: %v", *s3BucketName, err)
 			}
 		}
 
-		if err = s3.CreatePrefix(*s3BucketName, *s3RootDir); err != nil {
+		if err = ess3.CreatePrefix(*s3BucketName, *s3RootDir); err != nil {
 			glog.Fatalf("failed to create prefix %s: %v", *s3RootDir, err)
 		}
 
-		if err := s3.SetFSMeta(meta); err != nil {
-			glog.Fatalf("error setting bucket metadata: %w", err)
+		if err := ess3.SetFSMeta(meta); err != nil {
+			glog.Fatalf("error setting bucket metadata: %s", err)
 		}
 
-		meta, err = s3.GetFSMeta(*s3BucketName, *s3RootDir)
+		meta, err = ess3.GetFSMeta(*s3BucketName, *s3RootDir)
 		if err != nil {
 			glog.Fatalf("failed to get S3 metadata: %s", err)
 		}
 		glog.Infof("Creating S3 Mounter")
-		m, err := mounter.New(meta, s3.Config)
+		m, err := mounter.New(meta, ess3.Config, addArgs)
 		if err != nil {
 			glog.Fatalf("failed to initialize S3 backend mounter: %s", err)
 		}

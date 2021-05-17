@@ -498,6 +498,19 @@ func (p *nfsProvisioner) createDirectory(directory, gid string) error {
 		}
 	}
 
+	touchFile(path, ".keep", perm)
+	return nil
+}
+
+func touchFile(dir string, filename string, perm os.FileMode) error {
+	file, err := os.OpenFile(path.Join(dir, filename), os.O_RDWR|os.O_CREATE, perm)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+	if _, err := file.WriteString("touch"); err != nil {
+		return err
+	}
 	return nil
 }
 

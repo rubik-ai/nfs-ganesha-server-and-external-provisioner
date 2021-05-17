@@ -74,7 +74,7 @@ COPY --from=build /ganesha-extra /
 COPY --from=builder /go/src/bin/nfs-provisioner /nfs-provisioner
 
 # install rclone
-ARG RCLONE_VERSION=v1.54.1
+ARG RCLONE_VERSION=v1.55.1
 RUN cd /tmp \
   && curl -O https://downloads.rclone.org/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-linux-amd64.zip \
   && unzip /tmp/rclone-${RCLONE_VERSION}-linux-amd64.zip \

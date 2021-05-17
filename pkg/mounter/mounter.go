@@ -20,15 +20,15 @@ type Mounter interface {
 }
 
 const (
-	rcloneMounterType   = "rclone"
-	TypeKey             = "mounter"
-	BucketKey           = "bucket"
-	Prefix              = "prefix"
-	FSPath              = "fsPath"
+	rcloneMounterType = "rclone"
+	TypeKey           = "mounter"
+	BucketKey         = "bucket"
+	Prefix            = "prefix"
+	FSPath            = "fsPath"
 )
 
 // New returns a new mounter depending on the mounterType parameter
-func New(meta *s3.FSMeta, cfg *s3.Config) (Mounter, error) {
+func New(meta *s3.FSMeta, cfg *s3.Config, addArgs []string) (Mounter, error) {
 	mounter := meta.Mounter
 	// Fall back to mounterType in cfg
 	if len(meta.Mounter) == 0 {
@@ -36,10 +36,10 @@ func New(meta *s3.FSMeta, cfg *s3.Config) (Mounter, error) {
 	}
 	switch mounter {
 	case rcloneMounterType:
-		return newRcloneMounter(meta, cfg)
+		return newRcloneMounter(meta, cfg, addArgs)
 
 	default:
-		return newRcloneMounter(meta, cfg)
+		return newRcloneMounter(meta, cfg, addArgs)
 	}
 }
 
@@ -49,7 +49,7 @@ func fuseMount(path string, command string, args []string) error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Error fuseMount command: %s\nargs: %s\noutput: %s", command, args, out)
+		return fmt.Errorf("Error fuseMount command: %s\nargs: %s\noutputs: %s\n", command, args, out)
 	}
 
 	return waitForMount(path, 10*time.Second)
