@@ -32,7 +32,7 @@ func newRcloneMounter(meta *s3.FSMeta, cfg *s3.Config, additionalArgs []string) 
 	}, nil
 }
 
-func (rclone *rcloneMounter) Mount(target string) error {
+func (rclone *rcloneMounter) Mount(target string, fork bool) error {
 	args := []string{
 		"mount",
 		fmt.Sprintf(":s3:%s", path.Join(rclone.meta.BucketName, rclone.meta.Prefix, rclone.meta.FSPath)),
@@ -47,5 +47,8 @@ func (rclone *rcloneMounter) Mount(target string) error {
 	args = append(args, rclone.additionalArgs...)
 	os.Setenv("AWS_ACCESS_KEY_ID", rclone.accessKeyID)
 	os.Setenv("AWS_SECRET_ACCESS_KEY", rclone.secretAccessKey)
+	if fork {
+		return fuseMountFork(target, rcloneCmd, args)
+	}
 	return fuseMount(target, rcloneCmd, args)
 }

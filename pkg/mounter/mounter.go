@@ -16,7 +16,7 @@ import (
 )
 
 type Mounter interface {
-	Mount(target string) error
+	Mount(target string, fork bool) error
 }
 
 const (
@@ -50,6 +50,17 @@ func fuseMount(path string, command string, args []string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("Error fuseMount command: %s\nargs: %s\noutputs: %s\n", command, args, out)
+	}
+
+	return waitForMount(path, 10*time.Second)
+}
+
+func fuseMountFork(path string, command string, args []string) error {
+	cmd := exec.Command(command, args...)
+	glog.V(3).Infof("Mounting fuse with command: %s and args: %s", command, args)
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("Error fuseMount command: %s\nargs: %s\n", command, args)
 	}
 
 	return waitForMount(path, 10*time.Second)

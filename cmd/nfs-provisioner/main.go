@@ -56,11 +56,13 @@ var (
 	s3Endpoint          = flag.String("s3-endpoint", "", "S3 Endpoint")
 	s3TargetMountDir    = flag.String("s3-target-mount-dir", "/mnt/s3", "Target Directory to mount the S3 Bucket and Root Dir")
 	s3MountAddArgs      = flag.String("s3-mount-additional-args", "", "Comma separated list of additional args to pass to the S3 mounter tool")
+	s3ForkMountCommand  = flag.Bool("s3-fork-mount-command", false, "Starts the mount command outside of this process")
 )
 
 const (
 	exportDir     = "/export"
-	ganeshaLog    = "/export/ganesha.log"
+	configDir     = "/var/run"
+	ganeshaLog    = "/var/log/ganesha.log"
 	ganeshaPid    = "/var/run/ganesha.pid"
 	ganeshaConfig = "/export/vfs.conf"
 )
@@ -159,10 +161,14 @@ func main() {
 			}
 		}
 		glog.Infof("Mounting S3")
-		if err := m.Mount(*s3TargetMountDir); err != nil {
+		if err := m.Mount(*s3TargetMountDir, *s3ForkMountCommand); err != nil {
 			glog.Fatalf("failed to initialize S3 backend mount: %s", err)
 		}
 		glog.Infof("s3: volume %s/%s successfuly mounted to %s", *s3BucketName, *s3RootDir, *s3TargetMountDir)
+		// Wait for mount to sync before continuing provisioner process
+		glog.Infof("sleeping to let the mount sync 30s...")
+		time.Sleep(30 * time.Second)
+		glog.Infof("sleeping to let the mount sync 30s...complete")
 	}
 
 	if *runServer {
@@ -211,7 +217,7 @@ func main() {
 
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
-	nfsProvisioner := vol.NewNFSProvisioner(exportDir, clientset, outOfCluster, *useGanesha, ganeshaConfig, *enableXfsQuota, *serverHostname, *maxExports, *exportSubnet)
+	nfsProvisioner := vol.NewNFSProvisioner(exportDir, configDir, clientset, outOfCluster, *useGanesha, ganeshaConfig, *enableXfsQuota, *serverHostname, *maxExports, *exportSubnet)
 
 	// Start the provision controller which will dynamically provision NFS PVs
 	pc := controller.NewProvisionController(

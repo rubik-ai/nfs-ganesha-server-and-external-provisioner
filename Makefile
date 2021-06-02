@@ -55,7 +55,7 @@ clean-binary:
 .PHONY: clean-binary
 
 tmdc-container:
-	docker build -t docker.io/rubiklabs/nfs-provisioner:3.0.2-d8 -f Dockerfile --label revision=$(VERSION) .
+	docker build -t docker.io/rubiklabs/nfs-provisioner:3.0.4-d2 -f Dockerfile --label revision=$(VERSION) .
 
 tmdc-push: tmdc-container
-	docker push docker.io/rubiklabs/nfs-provisioner:3.0.2-d8
+	docker push docker.io/rubiklabs/nfs-provisioner:3.0.4-d2

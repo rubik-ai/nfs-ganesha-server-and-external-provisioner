@@ -78,7 +78,18 @@ const (
 
 // NewNFSProvisioner creates a Provisioner that provisions NFS PVs backed by
 // the given directory.
-func NewNFSProvisioner(exportDir string, client kubernetes.Interface, outOfCluster bool, useGanesha bool, ganeshaConfig string, enableXfsQuota bool, serverHostname string, maxExports int, exportSubnet string) controller.Provisioner {
+func NewNFSProvisioner(
+	exportDir string,
+	configDir string,
+	client kubernetes.Interface,
+	outOfCluster bool,
+	useGanesha bool,
+	ganeshaConfig string,
+	enableXfsQuota bool,
+	serverHostname string,
+	maxExports int,
+	exportSubnet string,
+) controller.Provisioner {
 	var exp exporter
 	if useGanesha {
 		exp = newGaneshaExporter(ganeshaConfig)
@@ -95,16 +106,26 @@ func NewNFSProvisioner(exportDir string, client kubernetes.Interface, outOfClust
 	} else {
 		quotaer = newDummyQuotaer()
 	}
-	return newNFSProvisionerInternal(exportDir, client, outOfCluster, exp, quotaer, serverHostname, maxExports, exportSubnet)
+	return newNFSProvisionerInternal(exportDir, configDir, client, outOfCluster, exp, quotaer, serverHostname, maxExports, exportSubnet)
 }
 
-func newNFSProvisionerInternal(exportDir string, client kubernetes.Interface, outOfCluster bool, exporter exporter, quotaer quotaer, serverHostname string, maxExports int, exportSubnet string) *nfsProvisioner {
+func newNFSProvisionerInternal(
+	exportDir string,
+	configDir string,
+	client kubernetes.Interface,
+	outOfCluster bool,
+	exporter exporter,
+	quotaer quotaer,
+	serverHostname string,
+	maxExports int,
+	exportSubnet string,
+) *nfsProvisioner {
 	if _, err := os.Stat(exportDir); os.IsNotExist(err) {
 		glog.Fatalf("exportDir %s does not exist!", exportDir)
 	}
 
 	var identity types.UID
-	identityPath := path.Join(exportDir, identityFile)
+	identityPath := path.Join(configDir, identityFile)
 	if _, err := os.Stat(identityPath); os.IsNotExist(err) {
 		identity = uuid.NewUUID()
 		err := ioutil.WriteFile(identityPath, []byte(identity), 0600)
@@ -121,6 +142,7 @@ func newNFSProvisionerInternal(exportDir string, client kubernetes.Interface, ou
 
 	provisioner := &nfsProvisioner{
 		exportDir:      exportDir,
+		configDir:      configDir,
 		client:         client,
 		outOfCluster:   outOfCluster,
 		exporter:       exporter,
@@ -141,6 +163,8 @@ func newNFSProvisionerInternal(exportDir string, client kubernetes.Interface, ou
 type nfsProvisioner struct {
 	// The directory to create PV-backing directories in
 	exportDir string
+
+	configDir string
 
 	// Client, needed for getting a service cluster IP to put as the NFS server of
 	// provisioned PVs
